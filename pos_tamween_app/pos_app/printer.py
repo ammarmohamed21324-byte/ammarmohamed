@@ -109,22 +109,22 @@ def build_generic_receipt_text(store_info, title, meta_lines, item_lines, footer
 
 def build_receipt_html(store_info, invoice_result, cart_items, ration_card=None, cashier_name=""):
     """
-    فاتورة البيع على الطابعة الحرارية.
-    جدولان منفصلان بـ table-layout:fixed بدون فراغات بينهم.
-    جدول المعلومات: 4 أعمدة ثابتة.
-    جدول الأصناف+الإجماليات+الدعم: 4 أعمدة ثابتة (الصنف 58%).
+    فاتورة البيع على طابعة حرارية 80mm.
+    - جدول المعلومات: 4 أعمدة بعرض ثابت، أعمدة التسميات أوسع لتسع النص العربي.
+    - جدول الأصناف: عرض 100% ثابت، عمود الصنف الأكبر، بدون صفوف فاضية.
+    - ترتيب الأعمدة في HTML معكوس عن الترتيب المرئي لأن Qt يعكس الأعمدة في وضع RTL.
     """
     import html as html_lib
 
     def esc(v):
         return html_lib.escape("" if v is None else str(v))
 
-    # تاريخ ووقت على سطرين مع ص/م عربي
     _now = datetime.datetime.now()
     date_str = _now.strftime("%d/%m/%Y")
     time_str = _now.strftime("%I:%M:%S")
     am_pm = "ص" if _now.hour < 12 else "م"
-    date_cell_html = "%s<br>%s %s" % (esc(date_str), am_pm, esc(time_str))
+    # سطرين: التاريخ ثم الوقت بخط أصغر
+    date_cell_html = '<span style="font-size:9px;">%s<br>%s %s</span>' % (esc(date_str), am_pm, esc(time_str))
 
     card_number = ration_card["card_number"] if ration_card else "-"
     customer_name = (ration_card.get("holder_name") if ration_card else None) or "-"
@@ -137,79 +137,145 @@ def build_receipt_html(store_info, invoice_result, cart_items, ration_card=None,
     required_amount = invoice_result.get("required_amount", 0)
     remaining_amount = invoice_result.get("remaining_amount", 0)
 
-    FONT  = "font-family:'Traditional Arabic','Simplified Arabic',Arial,Tahoma,sans-serif;"
-    TI    = "width:100%;table-layout:fixed;border-collapse:collapse;font-size:10px;margin:0;"
-    TS    = "width:100%;table-layout:fixed;border-collapse:collapse;font-size:10px;margin:0;"
-    TA    = "width:100%;border-collapse:collapse;font-size:10px;"
-    SEP   = "border-top:2px solid #000;padding:0;height:0;"
+    FONT = "font-family:'Traditional Arabic','Simplified Arabic',Arial,Tahoma,sans-serif;"
+    # عرض الجدول 100% ثابت - table-layout:fixed يمنع تمدد الجدول حسب المحتوى
+    TB = "width:100%;table-layout:fixed;border-collapse:collapse;margin:0;"
 
-    LBL   = "text-align:right;font-weight:bold;white-space:nowrap;padding:1px 3px;font-size:10px;"
-    VAL_R = "text-align:right;white-space:nowrap;padding:1px 3px;font-size:10px;"
-    VAL_WR= "text-align:right;word-wrap:break-word;padding:1px 3px;font-size:10px;line-height:1.4;"
-    NUM   = "text-align:center;white-space:nowrap;padding:1px 2px;font-size:9px;"
-    NUM_B = "text-align:center;font-weight:bold;white-space:nowrap;padding:2px 3px;font-size:11px;"
-    HDR_C = "text-align:center;font-weight:bold;white-space:nowrap;padding:2px 2px;font-size:9px;"
-    HDR_R = "text-align:right;font-weight:bold;white-space:nowrap;padding:2px 3px;font-size:9px;"
-    ITM_R = "text-align:right;word-wrap:break-word;padding:1px 3px;font-size:10px;"
-    LBR   = "text-align:right;font-weight:bold;white-space:nowrap;padding:1px 3px;font-size:10px;"
-    MID   = "text-align:center;vertical-align:middle;word-wrap:break-word;padding:2px;font-size:10px;"
+    # أنماط الخلايا
+    LBL  = "text-align:right;font-weight:bold;padding:1px 2px;font-size:9px;overflow:hidden;"
+    VALR = "text-align:right;padding:1px 2px;font-size:9px;overflow:hidden;"
+    VALW = "text-align:right;padding:1px 2px;font-size:9px;word-wrap:break-word;line-height:1.3;overflow:hidden;"
+    NUM  = "text-align:center;padding:1px 1px;font-size:9px;overflow:hidden;"
+    NUMB = "text-align:center;font-weight:bold;padding:2px 2px;font-size:10px;"
+    BNMB = "text-align:center;font-weight:bold;padding:2px 2px;font-size:10px;border-top:2px solid #000;"
+    HDRN = "text-align:center;font-weight:bold;padding:2px 1px;font-size:9px;"
+    HDRR = "text-align:right;font-weight:bold;padding:2px 2px;font-size:9px;"
+    ITMR = "text-align:right;padding:1px 2px;font-size:9px;word-wrap:break-word;overflow:hidden;"
+    LBRT = "text-align:right;font-weight:bold;padding:1px 2px;font-size:9px;"
+    BLBR = "text-align:right;font-weight:bold;padding:1px 2px;font-size:9px;border-top:2px solid #000;"
+    MID  = "text-align:center;vertical-align:middle;padding:3px 2px;font-size:9px;border-top:2px solid #000;"
+    MID2 = "text-align:center;vertical-align:middle;padding:3px 2px;font-size:9px;"
 
     lines = []
     lines.append('<html><head><meta charset="utf-8"></head>')
-    lines.append('<body style="%sfont-size:10px;color:#000;margin:0;padding:0;">' % FONT)
+    lines.append('<body style="%sfont-size:9px;color:#000;margin:0;padding:0;width:100%%;">' % FONT)
 
     if store_info.get("store_brand"):
-        lines.append('<div style="text-align:center;font-weight:bold;font-size:20px;line-height:1.3;margin:2px 0;">%s</div>' % esc(store_info["store_brand"]))
+        lines.append('<div style="text-align:center;font-weight:bold;font-size:18px;line-height:1.2;margin:1px 0;">%s</div>' % esc(store_info["store_brand"]))
     if store_info.get("store_name"):
-        lines.append('<div style="text-align:center;font-weight:bold;font-size:14px;line-height:1.2;">%s</div>' % esc(store_info["store_name"]))
+        lines.append('<div style="text-align:center;font-weight:bold;font-size:12px;line-height:1.1;">%s</div>' % esc(store_info["store_name"]))
     if store_info.get("store_tagline"):
-        lines.append('<div style="text-align:center;font-size:10px;line-height:1.2;margin-bottom:2px;">%s</div>' % esc(store_info["store_tagline"]))
+        lines.append('<div style="text-align:center;font-size:9px;line-height:1.1;margin-bottom:1px;">%s</div>' % esc(store_info["store_tagline"]))
 
-    # جدول المعلومات — 4 أعمدة fixed
-    lines.append('<table border="1" cellspacing="0" cellpadding="0" style="%s">' % TI)
-    lines.append('<colgroup><col width="20%"><col width="24%"><col width="36%"><col width="20%"></colgroup>')
+    # ---------------------------------------------------------------
+    # جدول المعلومات — 4 أعمدة
+    # ترتيب HTML (Qt يعكسها في RTL):
+    #   col1=قيمة رقم الفاتورة  col2=تسمية رقم الفاتورة  col3=قيمة التاريخ  col4=تسمية التاريخ
+    # مرئياً من اليمين: تسمية | قيمة التاريخ | تسمية رقم | قيمة الرقم
+    # col4 (التاريخ/الكاشير/الماكينة) أوسع عشان ما يتقطعش
+    # ---------------------------------------------------------------
+    lines.append('<table border="1" cellspacing="0" cellpadding="0" style="%s">' % TB)
+    lines.append('<colgroup>'
+                 '<col style="width:15%">'
+                 '<col style="width:27%">'
+                 '<col style="width:32%">'
+                 '<col style="width:26%">'
+                 '</colgroup>')
     for val1, lbl1, val2_html, lbl2 in [
-        (esc(str(invoice_result["invoice_number"])), "رقم الفاتوره", date_cell_html,          "التاريخ"),
-        (esc(card_number),                           "رقم البطاقه",  esc(cashier_name or "-"), "الكاشير"),
-        (esc(customer_name),                          "اسم العميل",   esc(machine_number),      "الماكينة"),
+        (esc(str(invoice_result["invoice_number"])), "رقم الفاتوره", date_cell_html,           "التاريخ"),
+        (esc(card_number),                           "رقم البطاقه",  esc(cashier_name or "-"),  "الكاشير"),
+        (esc(customer_name),                         "اسم العميل",   esc(machine_number),       "الماكينة"),
     ]:
-        lines.append('<tr><td style="%s">%s</td><td style="%s">%s</td><td style="%s">%s</td><td style="%s">%s</td></tr>'
-            % (VAL_R, val1, LBL, lbl1, VAL_WR, val2_html, LBL, lbl2))
+        lines.append(
+            '<tr>'
+            '<td style="%s">%s</td>'
+            '<td style="%s">%s</td>'
+            '<td style="%s">%s</td>'
+            '<td style="%s">%s</td>'
+            '</tr>' % (VALR, val1, LBL, lbl1, VALW, val2_html, LBL, lbl2)
+        )
     lines.append('</table>')
 
-    # جدول الأصناف + الإجماليات + الدعم — 4 أعمدة fixed
-    lines.append('<table border="1" cellspacing="0" cellpadding="0" style="%s">' % TS)
-    lines.append('<colgroup><col width="18%"><col width="14%"><col width="10%"><col width="58%"></colgroup>')
+    # ---------------------------------------------------------------
+    # جدول الأصناف + الإجماليات — جدول واحد بعرض ثابت 100%
+    # ترتيب HTML: col1=إجمالي  col2=سعر  col3=كمية  col4=اسم الصنف
+    # مرئياً RTL: الصنف(أكبر) | كمية | سعر | إجمالي
+    # col4=58% عشان اسم الصنف يظهر على سطر أو سطرين بالكتير
+    # ---------------------------------------------------------------
+    lines.append('<table border="1" cellspacing="0" cellpadding="0" style="%s">' % TB)
+    lines.append('<colgroup>'
+                 '<col style="width:18%">'
+                 '<col style="width:12%">'
+                 '<col style="width:10%">'
+                 '<col style="width:60%">'
+                 '</colgroup>')
 
-    lines.append('<tr><td style="%s">الإجمالي</td><td style="%s">السعر</td><td style="%s">الكمية</td><td style="%s">الصنف</td></tr>'
-        % (HDR_C, HDR_C, HDR_C, HDR_R))
+    # رأس الجدول
+    lines.append(
+        '<tr>'
+        '<td style="%s">الإجمالي</td>'
+        '<td style="%s">السعر</td>'
+        '<td style="%s">الكمية</td>'
+        '<td style="%s">الصنف</td>'
+        '</tr>' % (HDRN, HDRN, HDRN, HDRR)
+    )
 
+    # صفوف الأصناف
     for item in cart_items:
         lt = round(item["quantity"] * item["unit_price"], 2)
-        lines.append('<tr><td style="%s">%.2f</td><td style="%s">%g</td><td style="%s">%g</td><td style="%s">%s</td></tr>'
-            % (NUM, lt, NUM, item["unit_price"], NUM, item["quantity"], ITM_R, esc(item["name"])))
+        lines.append(
+            '<tr>'
+            '<td style="%s">%.2f</td>'
+            '<td style="%s">%g</td>'
+            '<td style="%s">%g</td>'
+            '<td style="%s">%s</td>'
+            '</tr>' % (NUM, lt, NUM, item["unit_price"], NUM, item["quantity"], ITMR, esc(item["name"]))
+        )
 
-    lines.append('<tr><td colspan="4" style="%s"></td></tr>' % SEP)
-    lines.append('<tr><td colspan="2" style="%s">%.2f</td><td colspan="2" style="%s">الإجمالي</td></tr>'
-        % (NUM_B, invoice_result["grand_total"], LBR))
-    lines.append('<tr><td colspan="2" style="%s">%.2f</td><td colspan="2" style="%s">الإجمالي+الخدمة</td></tr>'
-        % (NUM_B, total_with_service, LBR))
+    # الإجماليات — border-top مباشرة على الصف بدل صف فاضي
+    lines.append(
+        '<tr>'
+        '<td colspan="2" style="%s">%.2f</td>'
+        '<td colspan="2" style="%s">الإجمالي</td>'
+        '</tr>' % (BNMB, invoice_result["grand_total"], BLBR)
+    )
+    lines.append(
+        '<tr>'
+        '<td colspan="2" style="%s">%.2f</td>'
+        '<td colspan="2" style="%s">الإجمالي+الخدمة</td>'
+        '</tr>' % (NUMB, total_with_service, LBRT)
+    )
 
-    lines.append('<tr><td colspan="4" style="%s"></td></tr>' % SEP)
-
-    count_html = '<b style="font-size:10px;">عدد الأصناف</b><br><b style="font-size:15px;">%d</b>' % len(cart_items)
-    lines.append('<tr><td colspan="2" rowspan="3" style="%s">%s</td><td style="%s">%.2f</td><td style="%s">الدعم</td></tr>'
-        % (MID, count_html, NUM_B, support_total, LBR))
-    lines.append('<tr><td style="%s">%.2f</td><td style="%s">المطلوب</td></tr>' % (NUM_B, required_amount, LBR))
-    lines.append('<tr><td style="%s">%.2f</td><td style="%s">المتبقي</td></tr>' % (NUM_B, remaining_amount, LBR))
+    # عدد الأصناف + الدعم/المطلوب/المتبقي — border-top بدل صف فاضي
+    count_inner = ('<b style="font-size:9px;">عدد الأصناف</b>'
+                   '<br><b style="font-size:13px;">%d</b>') % len(cart_items)
+    lines.append(
+        '<tr>'
+        '<td colspan="2" rowspan="3" style="%s">%s</td>'
+        '<td style="%s">%.2f</td>'
+        '<td style="%s">الدعم</td>'
+        '</tr>' % (MID, count_inner, BNMB, support_total, BLBR)
+    )
+    lines.append(
+        '<tr>'
+        '<td style="%s">%.2f</td>'
+        '<td style="%s">المطلوب</td>'
+        '</tr>' % (NUMB, required_amount, LBRT)
+    )
+    lines.append(
+        '<tr>'
+        '<td style="%s">%.2f</td>'
+        '<td style="%s">المتبقي</td>'
+        '</tr>' % (NUMB, remaining_amount, LBRT)
+    )
     lines.append('</table>')
 
     pm = invoice_result.get("payment_method", "")
     if pm == "credit":
-        lines.append('<div style="text-align:center;font-weight:bold;margin-top:1px;font-size:10px;">** البيع بالآجل - على حساب العميل **</div>')
+        lines.append('<div style="text-align:center;font-weight:bold;margin-top:1px;font-size:9px;">** البيع بالآجل - على حساب العميل **</div>')
     elif pm in ("visa", "instapay", "wallet"):
         pm_labels = {"visa": "فيزا", "instapay": "إنستا باي", "wallet": "محفظة"}
-        lines.append('<div style="text-align:center;margin-top:1px;font-size:10px;">طريقة الدفع: %s</div>' % pm_labels[pm])
+        lines.append('<div style="text-align:center;margin-top:1px;font-size:9px;">طريقة الدفع: %s</div>' % pm_labels[pm])
 
     combined = []
     if store_info.get("store_address"):
@@ -217,8 +283,8 @@ def build_receipt_html(store_info, invoice_result, cart_items, ration_card=None,
     if store_info.get("store_phone"):
         combined.append(esc(store_info["store_phone"]))
     if combined:
-        lines.append('<table border="1" cellspacing="0" cellpadding="2" style="%s">' % TA)
-        lines.append('<tr><td style="text-align:center;font-size:9px;">%s</td></tr>' % "<br>".join(combined))
+        lines.append('<table border="1" cellspacing="0" cellpadding="2" style="%s">' % TB)
+        lines.append('<tr><td style="text-align:center;font-size:8px;">%s</td></tr>' % "<br>".join(combined))
         lines.append('</table>')
 
     lines.append('</body></html>')
